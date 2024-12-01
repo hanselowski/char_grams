@@ -5,7 +5,7 @@ from utils import plot_matrix_bases, calculate_perplexity, sample_greedy
 
 
 # parameters
-num_words = 100
+num_words = 2
 hidden_size = 3
 learning_rate = 1e-3
 nmb_epochs = 5000

@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 from sklearn.decomposition import PCA
+from collections import defaultdict
+import random
 
 def plot_matrix_bases(W, V, v_column_names, limits=(-3, 3)):
     """
@@ -112,30 +114,33 @@ def plot_matrix_bases(W, V, v_column_names, limits=(-3, 3)):
         plt.show()
 
 
-
-
-
-
-
-def calculate_perplexity(model, data):
+def calculate_perplexity(model, data, custom_model=False):
     model.eval()
     with torch.no_grad():
         input_indices = data[:, 0]
         target_indices = data[:, 1]
-        logits = model(input_indices)
+        if custom_model:
+            Y = model(input_indices)
+            logits = torch.matmul(model.lin_out_layer, Y.T)
+        else:
+            logits = model(input_indices)
         loss = F.cross_entropy(logits.T, target_indices)
         perplexity = torch.exp(loss)
     return perplexity.item()
 
 
-def sample_greedy(model, chars, max_length=10):
+def sample_greedy(model, chars, max_length=10, custom_model=False):
     indices = [i for i in range(1, len(chars))]
     generated = torch.tensor(indices, dtype=torch.long).unsqueeze(0)
     input_seq = torch.tensor(indices, dtype=torch.long)
 
     with torch.no_grad():
         for _ in range(max_length):
-            output = model(input_seq)
+            if custom_model:
+                Y = model(input_seq)
+                output = torch.matmul(model.lin_out_layer, Y.T)
+            else:
+                output = model(input_seq)
             next_char = torch.argmax(output, dim=0)
             generated = torch.cat([generated, next_char.unsqueeze(0)], dim=0)
             input_seq = next_char
@@ -151,3 +156,65 @@ def sample_greedy(model, chars, max_length=10):
         words.append(word)
     return words
         
+
+def create_dataset(dataset_file='data/words_num_sents_10000.txt', num_words=10):
+
+    # load words
+    words = []
+    with open(dataset_file, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            # split to words, add end or word character to each word, skip the word if it contains a character not in the 26-letter alphabet, that is words containing characters with accents, umlauts, etc. are skipped
+
+            words.extend([word + '*' for word in line.strip().split() if all(char in "abcdefghijklmnopqrstuvwxyz" for char in word)])
+            if len(words) >= num_words:
+                words = words[:num_words]
+                break
+    print('words: ', words)
+
+    # get unique characters in words
+    unique_chars = set()
+    for word in words:
+        for char in word:
+            unique_chars.add(char)
+    chars = sorted(list(unique_chars))
+    print('unique_chars: ', chars)
+    print('len(unique_chars): ', len(unique_chars))
+
+    # create mapping from character to index
+    char2idx = {char: idx for idx, char in enumerate(chars)}
+
+    # create bigram dataset
+    data = []
+    for word in words:
+        for i in range(len(word) - 1):
+            data.append((char2idx[word[i]], char2idx[word[i+1]]))
+
+    # postprocess data
+    inpind2outlst = defaultdict(list)
+    for t in data:
+        inpind2outlst[t[0]].append(t[1])
+
+    output_indices_all = [i for i in range(len(chars))]
+
+    all_neg_indices_lst = []
+    for t in data:
+        inp_indx = t[0]
+        pot_pos = t[1]
+        all_pos = inpind2outlst[inp_indx]
+        all_neg = list(set(output_indices_all) - set(all_pos))
+        assert t[1] not in all_neg
+        all_neg_indices_lst.append(all_neg)
+
+    # padding
+    max_length = max(len(t) for t in all_neg_indices_lst)
+    all_neg_indices_lst_padded = [
+        list(t) + random.choices(t, k=max_length - len(t)) if len(t) < max_length else list(t)
+        for t in all_neg_indices_lst
+    ]
+
+    # add positives
+    all_target_indices_lst_padded = []
+    for t, lst_neg in zip(data, all_neg_indices_lst_padded):
+        all_target_indices_lst_padded.append([t[1]] + lst_neg)
+
+    return data, chars, all_target_indices_lst_padded
