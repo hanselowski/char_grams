@@ -199,7 +199,6 @@ def create_dataset(dataset_file='data/words_num_sents_10000.txt', num_words=10):
     all_neg_indices_lst = []
     for t in data:
         inp_indx = t[0]
-        pot_pos = t[1]
         all_pos = inpind2outlst[inp_indx]
         all_neg = list(set(output_indices_all) - set(all_pos))
         assert t[1] not in all_neg
