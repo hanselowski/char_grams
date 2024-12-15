@@ -2,7 +2,7 @@ import torch
 from pathlib import Path
 import logging
 from tqdm import tqdm
-from utils import plot_matrix_bases
+from utils.utils import plot_matrix_bases
 
 
 

@@ -121,10 +121,10 @@ def calculate_perplexity(model, data, custom_model=False):
         target_indices = data[:, 1]
         if custom_model:
             Y = model(input_indices)
-            logits = torch.matmul(model.lin_out_layer, Y.T)
+            logits = torch.matmul(Y, model.lin_out_layer.T)
         else:
             logits = model(input_indices)
-        loss = F.cross_entropy(logits.T, target_indices)
+        loss = F.cross_entropy(logits, target_indices)
         perplexity = torch.exp(loss)
     return perplexity.item()
 
@@ -138,10 +138,10 @@ def sample_greedy(model, chars, max_length=10, custom_model=False):
         for _ in range(max_length):
             if custom_model:
                 Y = model(input_seq)
-                output = torch.matmul(model.lin_out_layer, Y.T)
+                output = torch.matmul(Y, model.lin_out_layer.T)
             else:
                 output = model(input_seq)
-            next_char = torch.argmax(output, dim=0)
+            next_char = torch.argmax(output, dim=1)
             generated = torch.cat([generated, next_char.unsqueeze(0)], dim=0)
             input_seq = next_char
 
