@@ -1,31 +1,65 @@
 import torch
 from utils.utils import plot_matrix_bases, calculate_perplexity, sample_greedy, create_dataset
-from utils.models import BigLMLogitsModel, BigLMLinearModel, BigLMTranModel
+from utils.models import BigLMLinearModel # ReluMLP
 from utils.losses import CELoss, CorrectedCELoss
 import numpy as np
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
 
 # parameters
-num_words = 2
-hidden_size = 6
 learning_rate = 1e-3
 nmb_epochs = 5000
+
 
 
 
 # Train model ---------------------------------------------------------------
 
 # create dataset
-data, chars, target_indices_lst = create_dataset(num_words=num_words)
+# data, chars, target_indices_lst = create_dataset(num_words=num_words)
+
+transform = transforms.Compose([transforms.ToTensor()])
+train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+
+
 
 # select model
-# model_class = BigLMLogitsModel
 model_class = BigLMLinearModel
-# model_class = BigLMTranModel
-model = model_class(num_chars=len(chars), hidden_size=hidden_size)
+model = model_class(num_chars=10, hidden_size=784)
+
+optim = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+
+
+
+
+
+
 
 # select loss function
-criterion = CELoss()
-# criterion = CorrectedCELoss()
+# criterion = CELoss()
+
+criterion = torch.nn.CrossEntropyLoss()
+
+
+for batch_idx, (img, target) in enumerate(train_loader):
+    img = img.view(img.size(0), -1)
+
+    logits = model(features=img)
+
+    loss = criterion(logits, target)
+
+    loss.backward()
+
+    optim.step()
+
+    if batch_idx%100 == 0:
+        print(loss.item())
+
+
+'''
+
+###################################################
 
 # optimizer
 optim = torch.optim.AdamW(model.parameters(), lr=learning_rate)
@@ -95,3 +129,5 @@ elif type(model) == BigLMLinearModel:
     print("projection_matrix W: \n", W)
     print("embedding matrix V: \n", V)
     plot_matrix_bases(W, V, chars)
+
+'''

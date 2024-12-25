@@ -1,11 +1,67 @@
 import torch
-from pathlib import Path
-import logging
-from tqdm import tqdm
-from utils.utils import plot_matrix_bases
+from utils.decompose import DictionaryLearner
+
+
+# BigLMLogitsModel
+# words:  ['nathan*', 'dunn*']
+# unique_chars:  ['a', 'd', 'h', 'n', 't', 'u']
+
+L_red = torch.load('tensors/BigLMLogitsModel/L_red_num_words_2.npy')
+print(L_red)
+
+learner = DictionaryLearner()
+D, S = learner.learn_dictionary(L_red)
+print("D: ", D)
+print("S: ", S)
+
+
+# Compute eigenvalues and eigenvectors
+
+eigenvalues, eigenvectors = torch.linalg.eig(L_red)
+print("Eigenvalues:")
+print(eigenvalues)
+
+print("\nEigenvectors:")
+print(eigenvectors)
+
+# Convert eigenvalues to a diagonal matrix
+Lambda = torch.diag(eigenvalues)
+
+# Reconstruct L_red
+L_red_reconstructed = eigenvectors @ Lambda @ torch.linalg.inv(eigenvectors)
+
+print("\nReconstructed L_red:")
+print(L_red_reconstructed)
+
+dictionary = Lambda @ torch.linalg.inv(eigenvectors)
+print("\ndictionary:")
+print(dictionary)
+first_colum = eigenvectors @ dictionary[:,:1]
+print("\nfirst_colum:")
+print(first_colum)
 
 
 
+
+
+''' 
+W = torch.load('tensors/W.pt')
+V = torch.load('tensors/V.pt')
+U = torch.cat([W, V], dim=0)
+
+learner = DictionaryLearner()
+D, S = learner.learn_dictionary(U)
+
+
+illusrtate the decomposed matrices:
+Fix one matrix and use it as a basis for the other
+
+
+# Plot the original and transformed basis vectors
+plot_matrix_bases(W, V.T, chars)
+'''
+
+'''
 class DictionaryLearner:
     def __init__(self):
         # Configure paths
@@ -15,13 +71,13 @@ class DictionaryLearner:
         self.vocab_sizes = [1000]
         
         # Dictionary learning parameters
-        self.lambda_reg = 0.02  # Sparsity regularization parameter
-        self.num_iterations = 5000  # Number of total iterations
-        self.num_dict_atoms = 50  # Number of dictionary atoms (K)
+        self.lambda_reg = 0.1  # Sparsity regularization parameter
+        self.num_iterations = 2000  # Number of total iterations
+        self.num_dict_atoms = 5  # Number of dictionary atoms (K)
         
         # Set up directories and logging
-        self._setup_directories()
-        self._setup_logging()
+        # self._setup_directories()
+        # self._setup_logging()
         
         # Set device
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -89,25 +145,12 @@ class DictionaryLearner:
                     loss = torch.norm(V - reconstruction, 'fro')**2 + self.lambda_reg * torch.norm(S, 1)
                     pbar.set_postfix({'Loss': f'{loss.item():.4f}'})
                     logging.info(f"Iteration {i}, Loss: {loss.item()}")
+                    print(f"Iteration {i}, Loss: {loss.item()}")
+                    print(f"Reconstruction loss: {torch.norm(V - reconstruction, 'fro')**2}")
         
         return D.detach(), S.detach()
 
-
-W = torch.load('tensors/W.pt')
-V = torch.load('tensors/V.pt')
-U = torch.cat([W, V], dim=0)
-
-learner = DictionaryLearner()
-D, S = learner.learn_dictionary(U)
-
-illusrtate the decomposed matrices:
-Fix one matrix and use it as a basis for the other
-
-
-# Plot the original and transformed basis vectors
-plot_matrix_bases(W, V.T, chars)
-
-
+'''
 
 
 

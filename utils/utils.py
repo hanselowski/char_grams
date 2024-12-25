@@ -21,7 +21,7 @@ def plot_matrix_bases(W, V, v_column_names, limits=(-3, 3)):
     V = V.detach().cpu().numpy()
 
     # Determine the dimensionality
-    dim = V.shape[0]
+    dim = V.shape[1]
 
     if dim == 2:
         # 2D plotting
@@ -77,33 +77,32 @@ def plot_matrix_bases(W, V, v_column_names, limits=(-3, 3)):
         origin = np.zeros(3)  # Single origin point for 3D
 
         # Plot original basis vectors with labels
-        for i in range(V.shape[1]):
-            ax.quiver(*origin, V[0, i], V[1, i], V[2, i], 
-                     color='b', label=f'V ({v_column_names[i]})' if i == 0 else "")
+        for i in range(V.shape[0]):
+            ax.quiver(*origin, V[i, 0], V[i, 1], V[i, 2], 
+                     color='r', label=f'V ({v_column_names[i]})' if i == 0 else "")
             
             # Add text label at the tip of the vector
-            tip_x = V[0, i]
-            tip_y = V[1, i]
-            tip_z = V[2, i]
-            # Add a small offset to avoid overlap with the arrow
-            offset = 0.1
-            ax.text(tip_x + offset, tip_y + offset, tip_z + offset, 
-                   v_column_names[i], fontsize=10, color='b')
-
-        # Plot transformed basis vectors
-        W = W.T
-        for i in range(W.shape[1]):
-            ax.quiver(*origin, W[0, i], W[1, i], W[2, i], 
-                     color='r', label=f'W ({v_column_names[i]})' if i == 0 else "")
-            
-            # Add text label at the tip of the vector
-            tip_x = W[0, i]
-            tip_y = W[1, i]
-            tip_z = W[2, i]
+            tip_x = V[i, 0]
+            tip_y = V[i, 1]
+            tip_z = V[i, 2]
             # Add a small offset to avoid overlap with the arrow
             offset = 0.1
             ax.text(tip_x + offset, tip_y + offset, tip_z + offset, 
                    v_column_names[i], fontsize=10, color='r')
+
+        # Plot transformed basis vectors
+        for i in range(W.shape[0]):
+            ax.quiver(*origin, W[i, 0], W[i, 1], W[i, 2], 
+                     color='b', label=f'W ({v_column_names[i]})' if i == 0 else "")
+            
+            # Add text label at the tip of the vector
+            tip_x = W[i, 0]
+            tip_y = W[i, 1]
+            tip_z = W[i, 2]
+            # Add a small offset to avoid overlap with the arrow
+            offset = 0.1
+            ax.text(tip_x + offset, tip_y + offset, tip_z + offset, 
+                   v_column_names[i], fontsize=10, color='b')
 
 
         ax.set_xlim(limits)
@@ -114,16 +113,12 @@ def plot_matrix_bases(W, V, v_column_names, limits=(-3, 3)):
         plt.show()
 
 
-def calculate_perplexity(model, data, custom_model=False):
+def calculate_perplexity(model, data):
     model.eval()
     with torch.no_grad():
         input_indices = data[:, 0]
         target_indices = data[:, 1]
-        if custom_model:
-            Y = model(input_indices)
-            logits = torch.matmul(Y, model.lin_out_layer.T)
-        else:
-            logits = model(input_indices)
+        logits = model(input_indices)
         loss = F.cross_entropy(logits, target_indices)
         perplexity = torch.exp(loss)
     return perplexity.item()
@@ -136,11 +131,7 @@ def sample_greedy(model, chars, max_length=10, custom_model=False):
 
     with torch.no_grad():
         for _ in range(max_length):
-            if custom_model:
-                Y = model(input_seq)
-                output = torch.matmul(Y, model.lin_out_layer.T)
-            else:
-                output = model(input_seq)
+            output = model(input_seq)
             next_char = torch.argmax(output, dim=1)
             generated = torch.cat([generated, next_char.unsqueeze(0)], dim=0)
             input_seq = next_char

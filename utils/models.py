@@ -16,8 +16,11 @@ class BigLMLinearModel(nn.Module):
         self.emb = nn.Embedding(num_chars, hidden_size)
         self.lin_out_layer = torch.nn.Parameter(torch.rand(num_chars, hidden_size))
 
-    def forward(self, indices):
-        return torch.matmul(self.emb(indices), self.lin_out_layer.T)
+    def forward(self, indices=None, features=None):
+        if indices is not None:
+            return torch.matmul(self.emb(indices), self.lin_out_layer.T)
+        else:
+            return torch.matmul(features, self.lin_out_layer.T)
     
     def activations(self, indices):
         return self.emb(indices)
