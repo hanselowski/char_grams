@@ -5,11 +5,11 @@ from utils.decompose import DictionaryLearner
 # words:  ['nathan*', 'dunn*']
 # ['*', 'a', 'd', 'h', 'n', 't', 'u']
 # unique_chars:  ['a', 'd', 'h', 'n', 't', 'u']
+W = torch.load('tensors/BigLMLinearModel/dim_3/W_words_2.npy')
+V = torch.load('tensors/BigLMLinearModel/dim_3/V_words_2.npy')
+
 # W = torch.load('tensors/BigLMLinearModel/dim_6/W_words_2.npy')
 # V = torch.load('tensors/BigLMLinearModel/dim_6/V_words_2.npy')
-
-W = torch.load('tensors/BigLMLinearModel/dim_6/W_words_2.npy')
-V = torch.load('tensors/BigLMLinearModel/dim_6/V_words_2.npy')
 
 
 # find class features
@@ -20,30 +20,24 @@ print("embedding matrix V: \n", V.T)
 print("W: \n", W.T)
 print("C: \n", C)
 
-
-
-
-
-
-
-
 # V = V[1:, :] # remove entry for * 
-
 chars = ['*', 'a', 'd', 'h', 'n', 't', 'u']
 print("projection_matrix W: \n", W)
 print("embedding matrix V: \n", V)
 # plot_matrix_bases(W, V, chars)
 
+COR = W @ W.T
+L = COR @ C
+print("Logits: \n", L)
+print("Correlation matrix: \n", COR)
 
+print("C[:,2]: ", C[:,2])
+print("COR[-1:]: ", COR[-1:])
+print("COR[-1,:]@C[:,2]: ", COR[-1,:]@C[:,2])
 
-# find atoms (atom features) for embedding matrix V
-learner = DictionaryLearner()
-D, A = learner.learn_dictionary(V, num_dict_atoms=5, lambda_reg=0.1, num_iterations=1000)
-print("embedding matrix V: \n", V.T)
-print("D: \n", D)
-print("A: \n", A)
-
-
+print("C[:,3]: ", C[:,3])
+print("COR[-1:]: ", COR[-1:])
+print("COR[-1,:]@C[:,3]: ", COR[-1,:]@C[:,3])
 
 
 
@@ -57,10 +51,26 @@ torch.set_printoptions(sci_mode=False)
 # convert V in W basis
 L = W @ V.T
 V.T ~= W.T@C
+COR = W @ W.T
 L ~= W @ W.T @ C
 P = torch.softmax(L, dim=0)
 P ~= torch.softmax(W @ W.T @ C, dim=0)
 P ~= C
+
+COR[-1,:]
+C[:,2]
+COR[-1,:]@C[:,2]
+
+
+COR[-1,:]
+tensor([-0.8079, -2.6716,  3.1223,  0.6771, -2.7933,  1.5520,  6.0865],
+       grad_fn=<SliceBackward0>)
+C[:,2]
+tensor([0.0000, 0.0000, 0.0000, 0.0000, 0.8112, 0.0000, 1.6119])
+COR[-1,:]@C[:,2]
+tensor(7.5453, grad_fn=<DotBackward0>)
+
+
 
 # words:  ['nathan*', 'dunn*']
 # C: class features
@@ -73,6 +83,17 @@ P ~= C
         [0.0000, 1.5621, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],  t
         [0.0000, 0.1185, 1.6119, 0.0000, 0.4127, 0.0000, 0.5934]]) u
 
+
+Correlation matrix: 
+COR = W @ W.T
+tensor([[ 2.7292,  2.5777,  0.8280, -1.4495,  0.1068, -1.0328, -0.8079],
+        [ 2.5777,  5.1876,  1.9846,  0.0898, -0.6495, -1.2011, -2.6716],
+        [ 0.8280,  1.9846,  8.6855,  1.7765, -3.4743,  3.6155,  3.1223],
+        [-1.4495,  0.0898,  1.7765,  3.9013, -1.8747,  0.9160,  0.6771],
+        [ 0.1068, -0.6495, -3.4743, -1.8747,  2.7599, -0.6263, -2.7933],
+        [-1.0328, -1.2011,  3.6155,  0.9160, -0.6263,  3.9963,  1.5520],
+        [-0.8079, -2.6716,  3.1223,  0.6771, -2.7933,  1.5520,  6.0865]],
+
 P: probabilities = torch.softmax(L, dim=0)
 tensor([[    0.0118,     0.0003,     0.0002,     0.0012,     0.4996,     0.0000,    0.0007],
         [    0.0853,     0.0000,     0.0000,     0.9983,     0.2498,     0.0006,    0.0000],
@@ -81,6 +102,7 @@ tensor([[    0.0118,     0.0003,     0.0002,     0.0012,     0.4996,     0.0000,
         [    0.0193,     0.4998,     0.0001,     0.0000,     0.2495,     0.0005,    0.9986],
         [    0.0856,     0.4994,     0.0002,     0.0000,     0.0004,     0.0008,    0.0006],
         [    0.0449,     0.0001,     0.9993,     0.0000,     0.0003,     0.0008,    0.0000]])
+
 
 L: Logits = W @ V.T
 tensor([[-1.5772, -2.3816, -1.1272,  2.5634,  3.6381, -3.6939, -1.2769],
@@ -91,16 +113,17 @@ tensor([[-1.5772, -2.3816, -1.1272,  2.5634,  3.6381, -3.6939, -1.2769],
         [ 0.4061,  5.0957, -0.8893, -2.9150, -3.3871, -0.8707, -1.4960],
         [-0.2389, -3.1366,  7.6453, -6.2566, -3.7841, -0.8569, -4.2884]],
        grad_fn=<MmBackward0>)
-'''
 
 
 
 '''
-# Two layer network relu and softmax
-'''
 
 
+
+######################################################
+######################################################
 ''' 
+# Atom features
 logits = W @ V.T
 V_recon = D @ A
 assert W @ V.T == W @ V_recon
@@ -121,10 +144,47 @@ assert W @ V.T == W @ V_recon
 '''
 
 
+'''
+# Two layer network relu and softmax
+P = softmax(U @ relu(W @ V))
+
+# Ansatz I
+L1 = W @ V
+V.T ~= W.T@Cv
+R = relu(W @ V)
+R ~= Cv
+P ~ softmax(U @ Cv)
+
+# Ansatz II
+relu(W @ V) ~= U.T@C2
+
+# Ansatz III:
+P = softmax(U @ relu(W @ V))
+W ~= U @ C
+P = softmax(U @ relu(U @ C @ V))
+
+# Ansatz IV:
+L = W @ V
+V = D @ C1
+L = P @ C2
+
+P @ C2 = W @ D @ C1
+P = C2^-1 @ W @ D @ C1 
+P = T1 @ C1
+''' 
+
+''' 
+# find atoms (atom features) for embedding matrix V
+learner = DictionaryLearner()
+D, A = learner.learn_dictionary(V, num_dict_atoms=5, lambda_reg=0.1, num_iterations=1000)
+print("embedding matrix V: \n", V.T)
+print("D: \n", D)
+print("A: \n", A)
+'''
 
 
 
-###########################
+
 '''
 learner = DictionaryLearner()
 D, S = learner.learn_dictionary(L_red)

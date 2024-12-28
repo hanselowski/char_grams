@@ -6,10 +6,9 @@ import numpy as np
 
 # parameters
 num_words = 2
-hidden_size = 6
+hidden_size = 3
 learning_rate = 1e-3
 nmb_epochs = 5000
-
 
 
 # Train model ---------------------------------------------------------------
