@@ -48,7 +48,7 @@ class TwoLayerMLP(nn.Module):
         super(TwoLayerMLP, self).__init__()
         self.V = nn.Embedding(input_dim, hidden_dim)
         self.W = torch.nn.Parameter(torch.rand(ngrm_num, output_dim, hidden_dim)) # Shape: [2, 8, 3]
-        self.U = torch.nn.Parameter(torch.rand(output_dim, output_dim*2))
+        self.U = torch.nn.Parameter(torch.rand(output_dim, output_dim*ngrm_num))
         self.relu = nn.ReLU()
         
     def forward(self, indices):
@@ -71,27 +71,27 @@ class NGramLinearModel(nn.Module):
         X = torch.einsum('bch,coh->bco', X, self.U)
         logits = X.sum(dim=1) 
         return logits
-    
-
-'''
-        # Reshape X to combine batch and pair dimensions: [10, 2, 3] -> [20, 3]
-        X_reshaped = X.reshape(-1, 3)
-
-        # Create position indices to select the correct transformation from W
-        position_indices = torch.arange(2).repeat(10)  # [0,1, 0,1, ..., 0,1]
-
-        # Select the appropriate W for each position
-        W_selected = self.W[position_indices]  # Shape: [20, 8, 3]
-
-        # Perform the multiplication
-        Y = torch.matmul(X_reshaped.unsqueeze(1), W_selected.transpose(1, 2))  # Shape: [20, 1, 8]
-        Y = Y.squeeze(1)  # Shape: [20, 8]
-
-        # Reshape back to original batch and pair dimensions
-        Y = Y.reshape(10, 2, 8)  # Final shape: [10, 2, 8]
 
 
+class OneLoopNODE(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, ngrm_num=2, res_weight=1.0, n_layers=1, act_fun=nn.ReLU()):
+        super(OneLoopNODE, self).__init__()
+        self.V = nn.Embedding(input_dim, hidden_dim)
+        self.W = torch.nn.Parameter(torch.rand(ngrm_num, hidden_dim, hidden_dim))
+        self.U = torch.nn.Parameter(torch.rand(ngrm_num, output_dim, hidden_dim)) 
+        self.act_fun = act_fun  # nn.Tanh()
+        self.h = res_weight  # residual stream weight
+        self.n_layers = n_layers
 
-        W_reshaped = self.W.transpose(1, 2)  # Shape becomes [2, 3, 8]
-        X = torch.matmul(X, W_reshaped)  # Result shape: [10, 2, 8]
-'''
+    def forward(self, indices):
+        X = self.V(indices)
+        X_old = X
+        for _ in range(self.n_layers):
+            X = torch.einsum('bch,coh->bco', X, self.W)
+            Y = self.act_fun(X)
+            # layer norm missing
+            X = X_old*(1-self.h) + self.h * Y
+            X_old = X
+        logits = torch.einsum('bch,coh->bco', X, self.U)
+        logits = logits.sum(dim=1)
+        return logits

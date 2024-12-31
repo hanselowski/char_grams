@@ -1,40 +1,41 @@
 import torch
 from utils.utils import plot_matrix_bases, calculate_perplexity, sample_greedy, create_dataset, create_ngram_dataset
-from utils.models import BigLMLinearModel, TwoLayerMLP, NGramLinearModel
+from utils.models import TwoLayerMLP, NGramLinearModel, OneLoopNODE
 from utils.losses import CELoss
 import numpy as np
 
 # parameters
-num_words = 2
-hidden_dim = 3
+num_words = 2096  # 1048
+
+hidden_dim = 32
+ngrm_num = 7
+n_layers = 0
+
 learning_rate = 1e-3
-ngrm_num = 2
 nmb_epochs = 5000
 
 
 # Train model ---------------------------------------------------------------
 
 # create dataset
-data, chars = create_ngram_dataset(num_words=num_words, ngrm_num=ngrm_num)
+input_indices, target_indices, data, chars = create_ngram_dataset(num_words=num_words, ngrm_num=ngrm_num, first_word='#sir*')
 
 # select model
-# model_class = BigLMLinearModel
-# model_class = NGramLinearModel
-model_class = TwoLayerMLP
+model_class = OneLoopNODE
+model = model_class(input_dim=len(chars), hidden_dim=hidden_dim, output_dim=len(chars), ngrm_num=ngrm_num, res_weight=1.0, n_layers=n_layers)
 
-model = model_class(input_dim=len(chars), hidden_dim=hidden_dim, output_dim=len(chars), ngrm_num=ngrm_num)
+# model_class = TwoLayerMLP
+# model = model_class(input_dim=len(chars), hidden_dim=hidden_dim, output_dim=len(chars), ngrm_num=ngrm_num)
+
+# model_class = NGramLinearModel
+# model = model_class(input_dim=len(chars), hidden_dim=hidden_dim, output_dim=len(chars), ngrm_num=ngrm_num)
+
 
 # select loss function
 criterion = CELoss()
 
 # optimizer
 optim = torch.optim.AdamW(model.parameters(), lr=learning_rate)
-
-# convert data to tensor
-data_tens = torch.tensor(data)
-
-input_indices = data_tens[:, :2]
-target_indices = data_tens[:, 2]
 
 # run training loop
 for epoch in range(nmb_epochs):
@@ -52,7 +53,7 @@ for epoch in range(nmb_epochs):
 # Tensor analysis ---------------------------------------------------------------
 
 # Sample words greedily
-generated_word = sample_greedy(model, chars, ngrm_num=ngrm_num)
+generated_word = sample_greedy(model, input_indices, chars, ngrm_num=ngrm_num)
 print("Generated word:", generated_word)
 
 # Calculate perplexity
@@ -60,8 +61,10 @@ perplexity = calculate_perplexity(model, input_indices, target_indices)
 print(f'Perplexity: {perplexity}')
 
 
+'''
 # Get tensors
 V = model.V.weight
+W = model.W
 U = model.U
 
 model_name = model.__class__.__name__
@@ -85,5 +88,5 @@ if type(model) == TwoLayerMLP:
 
 else:
     plot_matrix_bases(matrices=[U[1], U[0], V], colors=['b','c','r'], legends=["U[1]", "U[0]", "V"], chars=chars)
-
+'''
 

@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from sklearn.decomposition import PCA
 from collections import defaultdict
 import random
+import seaborn as sns
+from typing import Optional, Tuple, Union
 
 def plot_matrix_bases(matrices, colors, legends, chars, limits=(-3, 3)):
     """
@@ -90,6 +92,46 @@ def plot_matrix_bases(matrices, colors, legends, chars, limits=(-3, 3)):
         plt.show()
 
 
+def create_heatmaps(tensors, titles=None, cmap='viridis', annot=True):
+    """
+    Create heatmaps from a list of PyTorch tensors side by side.
+    
+    Args:
+        tensors (list): List of 2D PyTorch tensors
+        titles (list, optional): List of titles for each heatmap
+        cmap (str): Colormap name
+        annot (bool): Show values in cells
+    """
+    n_plots = len(tensors)
+    if not n_plots:
+        raise ValueError("Empty tensor list provided")
+    
+    if titles and len(titles) != n_plots:
+        raise ValueError("Number of titles must match number of tensors")
+    
+    fig, axes = plt.subplots(1, n_plots, figsize=(10 * n_plots, 8))
+    if n_plots == 1:
+        axes = [axes]
+    
+    for i, (tensor, ax) in enumerate(zip(tensors, axes)):
+        if len(tensor.shape) != 2:
+            raise ValueError(f"Tensor {i} has shape {tensor.shape}, expected 2D")
+        
+        sns.heatmap(
+            tensor.detach().cpu().numpy(),
+            cmap=cmap,
+            annot=annot,
+            fmt='.3f',
+            square=True,
+            ax=ax
+        )
+        if titles and titles[i]:
+            ax.set_title(titles[i])
+            
+    plt.tight_layout()
+    plt.show()
+
+
 def calculate_perplexity(model, input_indices, target_indices):
     model.eval()
     with torch.no_grad():
@@ -99,11 +141,11 @@ def calculate_perplexity(model, input_indices, target_indices):
     return perplexity.item()
 
 
-def sample_greedy(model, chars, max_length=10, custom_model=False, ngrm_num=1):
-    indices = [[0, i] for i in range(2, len(chars))]
+def sample_greedy(model, indices, chars, max_length=10, custom_model=False, ngrm_num=1):
+    # indices = [[0, i] for i in range(2, len(chars))]
 
-    generated = torch.tensor(indices, dtype=torch.long).unsqueeze(0)
-    input_seq = torch.tensor(indices, dtype=torch.long)
+    generated = indices.clone().detach().unsqueeze(0)
+    input_seq = indices.clone().detach()
 
     with torch.no_grad():
         for _ in range(max_length):
@@ -114,20 +156,28 @@ def sample_greedy(model, chars, max_length=10, custom_model=False, ngrm_num=1):
 
     words = []
     generated = generated.tolist()
+    if '%' in chars:
+        stop_index = 2
+    else:
+        stop_index = 1
+
     for lst in generated:
         word = ''
         for idx in lst:
-            if idx == 1:
+            if idx == stop_index:  # if % idx 2 else 1
                 break
             word += chars[idx]
         words.append(word)
     return words
         
 
-def create_dataset(dataset_file='data/words_num_sents_10000.txt', num_words=10):
+def create_dataset(dataset_file='data/words_num_sents_10000.txt', num_words=10, first_word=False):
 
     # load words
-    words = []
+    if first_word:
+        words = [first_word]
+    else:
+        words = []
     with open(dataset_file, "r", encoding="utf-8") as f:
         for i, line in enumerate(f):
             # split to words, add end or word character to each word, skip the word if it contains a character not in the 26-letter alphabet, that is words containing characters with accents, umlauts, etc. are skipped
@@ -186,10 +236,13 @@ def create_dataset(dataset_file='data/words_num_sents_10000.txt', num_words=10):
     return data, chars, all_target_indices_lst_padded
 
 
-def create_ngram_dataset(num_words=2, ngrm_num=2, dataset_file='data/words_num_sents_10000.txt'):
+def create_ngram_dataset(num_words=2, ngrm_num=2, dataset_file='data/words_num_sents_10000.txt', first_word=False):
 
     # load words
-    words = []
+    if first_word:
+        words = [first_word]
+    else:
+        words = []
     with open(dataset_file, "r", encoding="utf-8") as f:
         for i, line in enumerate(f):
             # split to words, add end or word character to each word, skip the word if it contains a character not in the 26-letter alphabet, that is words containing characters with accents, umlauts, etc. are skipped
@@ -202,7 +255,11 @@ def create_ngram_dataset(num_words=2, ngrm_num=2, dataset_file='data/words_num_s
 
     # get unique characters in words
     unique_chars = set()
+    words_padded = []
     for word in words:
+        if len(word)-1 < ngrm_num:  # prediction of short sequences # len(word)-1
+            word = '%'*(ngrm_num-len(word)+1) + word  # (ngrm_num-len(word)+1)
+        words_padded.append(word)
         for char in word:
             unique_chars.add(char)
     chars = sorted(list(unique_chars))
@@ -212,11 +269,17 @@ def create_ngram_dataset(num_words=2, ngrm_num=2, dataset_file='data/words_num_s
     # create mapping from character to index
     char2idx = {char: idx for idx, char in enumerate(chars)}
 
-    # create bigram dataset
+    # create dataset
     data = []
-    for word in words:
+    for word in words_padded:
         indices = [char2idx[char] for char in word]
         for i in range(len(indices) - ngrm_num):
             data.append(indices[i:i+ngrm_num+1])
 
-    return data, chars
+    # convert data to tensor
+    data_tens = torch.tensor(data)
+
+    input_indices = data_tens[:, :ngrm_num]
+    target_indices = data_tens[:, ngrm_num]
+
+    return input_indices, target_indices, data, chars

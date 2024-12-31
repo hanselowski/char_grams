@@ -78,7 +78,7 @@ class DictionaryLearner:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         logging.info(f"Using device: {self.device}")
 
-    def update_S_ISTA(self, D, S, X, lambda_reg, num_iters=50, lr=0.1):
+    def update_S_ISTA(self, D, S, X, lambda_reg, num_iters=50, lr=0.1, only_positive=True):
         """Update sparse codes using ISTA."""
         D = D.detach()
         S = S.clone().detach()
@@ -90,10 +90,10 @@ class DictionaryLearner:
             # Gradient descent step
             S = S - lr * grad
             # Soft-thresholding (proximal operator for L1 norm)
-            # S = torch.sign(S) * torch.clamp(torch.abs(S) - lr * lambda_reg, min=0.0)
-            S = torch.clamp(S - lr * lambda_reg, min=0.0)
-        
-        return S
+            if only_positive:
+                return torch.clamp(S - lr * lambda_reg, min=0.0)  # positive constraint
+            else:
+                return torch.sign(S) * torch.clamp(torch.abs(S) - lr * lambda_reg, min=0.0)
 
     def update_D(self, D, S, X, num_iters=10, lr=0.1):
         """Update dictionary using gradient descent."""
@@ -114,7 +114,7 @@ class DictionaryLearner:
         
         return D.detach()
 
-    def learn_dictionary(self, V, num_dict_atoms=5, lambda_reg=0.1, num_iterations=1000, fixed_dictionary=None):
+    def learn_dictionary(self, V, num_dict_atoms=5, lambda_reg=0.1, num_iterations=1000, fixed_dictionary=None, only_positive=True):
         """Perform dictionary learning on input matrix V. Optionally use a fixed dictionary."""
         N, M = V.shape  # N: number of words (1001), M: embedding dimension (15)
         K = num_dict_atoms if fixed_dictionary is None else fixed_dictionary.shape[1]
@@ -137,7 +137,7 @@ class DictionaryLearner:
         pbar = tqdm(range(num_iterations), desc="Dictionary Learning")
         for i in pbar:
             # Update S using ISTA with non-negativity constraint
-            S = self.update_S_ISTA(D, S, V, lambda_reg, num_iters=20, lr=0.01)
+            S = self.update_S_ISTA(D, S, V, lambda_reg, num_iters=20, lr=0.01, only_positive=only_positive)
             
             # Update D only if no fixed dictionary is provided
             if fixed_dictionary is None:
